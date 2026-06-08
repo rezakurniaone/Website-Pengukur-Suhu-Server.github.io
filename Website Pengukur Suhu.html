@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator Suhu Server — Metode Numerik</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+  <!-- =========================================================
+       HEADER
+  ========================================================= -->
+  <header>
+    <div class="header-left">
+      <div class="header-tag">Komputasi Numerik // Suhu Server</div>
+      <h1>Kalkulator<br><span>Suhu</span> Server</h1>
+      <div class="header-meta">
+        <span>30 titik observasi (3 hari)</span>
+        <span>Rentang: 08:00 – 17:00</span>
+        <span>3 metode numerik</span>
+      </div>
+    </div>
+    <div class="badge-methods">
+      <div class="badge badge-blue">Lagrange</div>
+      <div class="badge badge-green">Newton Div. Diff.</div>
+      <div class="badge badge-amber">Gauss-Seidel</div>
+    </div>
+  </header>
+
+  <!-- =========================================================
+       MAIN GRID
+  ========================================================= -->
+  <div class="main-grid">
+
+    <!-- ---- PANEL KIRI: Input ---- -->
+    <div class="input-panel">
+
+      <!-- Kartu Input Waktu -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Input Waktu</div>
+
+        <div class="field-label">Waktu yang diprediksi</div>
+        <div class="waktu-display">
+          <span id="dispJam">08</span>:<span id="dispMenit">30</span>
+          <span class="unit">WIB</span>
+        </div>
+        <div class="waktu-sub">Desimal: <span id="dispDes">8.5</span> jam</div>
+
+        <input type="range" id="sliderWaktu" min="8" max="17" step="0.1" value="8.5"
+               oninput="onSlider(this.value)">
+        <div class="range-labels"><span>08:00</span><span>12:30</span><span>17:00</span></div>
+
+        <div style="margin-top:16px">
+          <div class="field-label">Atau ketik langsung (format desimal)</div>
+          <input type="number" id="inputManual" value="8.5" min="8" max="17" step="0.1"
+                 placeholder="cth: 13.5"
+                 oninput="onManual(this.value)">
+        </div>
+
+        <button class="btn-calc" style="margin-top:16px" onclick="compute()">
+          ▶ &nbsp;Hitung Prediksi Suhu
+        </button>
+        <div id="errBox" style="display:none;font-size:12px;color:var(--red);margin-top:10px;padding:8px 12px;background:rgba(239,68,68,.08);border-radius:6px;border:1px solid rgba(239,68,68,.2)">
+          ⚠ Waktu harus dalam rentang 8.0 – 17.0
+        </div>
+      </div>
+
+      <!-- Kartu Gauss-Seidel SPL -->
+      <div class="card">
+        <div class="card-title" style="--dot-c:var(--accent3)">
+          <span class="dot" style="background:var(--accent3)"></span>Uji SPL Gauss-Seidel
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          Masukkan sistem Ax = b (3×3).<br>Matriks harus <strong style="color:var(--accent3)">dominan diagonal</strong>.
+        </p>
+        <div class="gs-row"><span>A₁:</span><input type="text" id="gsA1" value="10 1 1"><span class="eq">=</span><input class="b-input" id="gsB1" value="12"></div>
+        <div class="gs-row"><span>A₂:</span><input type="text" id="gsA2" value="2 10 1"><span class="eq">=</span><input class="b-input" id="gsB2" value="13"></div>
+        <div class="gs-row"><span>A₃:</span><input type="text" id="gsA3" value="1 2 10"><span class="eq">=</span><input class="b-input" id="gsB3" value="13"></div>
+        <div class="param-row" style="margin-top:10px">
+          <div><label>Toleransi error (%)</label><input type="number" id="gsTol" value="0.0001" step="0.00001"></div>
+          <div><label>Maks iterasi</label><input type="number" id="gsMaxIt" value="100"></div>
+        </div>
+        <button class="btn-gs" onclick="jalanGS()">⟳ &nbsp;Jalankan Iterasi Gauss-Seidel</button>
+        <div class="log-box" id="logGs">Tekan tombol untuk menjalankan...</div>
+      </div>
+
+    </div>
+
+    <!-- ---- PANEL KANAN: Hasil & Grafik ---- -->
+    <div>
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Hasil Prediksi</div>
+
+        <!-- 3 Result Cards -->
+        <div class="result-row">
+          <div class="res-card lag">
+            <div class="res-method">Lagrange</div>
+            <div class="res-val" id="resLag">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffLag"></div>
+          </div>
+          <div class="res-card nwt">
+            <div class="res-method">Newton</div>
+            <div class="res-val" id="resNwt">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffNwt"></div>
+          </div>
+          <div class="res-card gs">
+            <div class="res-method">Gauss-Seidel</div>
+            <div class="res-val" id="resGs">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffGs"></div>
+          </div>
+        </div>
+
+        <!-- Grafik -->
+        <div class="chart-wrap">
+          <canvas id="mainChart"></canvas>
+        </div>
+
+        <!-- Tab Log Detail -->
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('lag',this)">fn lagrange( )</button>
+          <button class="tab-btn" onclick="switchTab('nwt',this)">fn newton( )</button>
+          <button class="tab-btn" onclick="switchTab('detail',this)">∑ ringkasan</button>
+        </div>
+        <div id="tab-lag" class="tab-panel active">
+          <div class="log-box" id="logLag">Tekan hitung untuk melihat detail...</div>
+        </div>
+        <div id="tab-nwt" class="tab-panel">
+          <div class="log-box" id="logNwt">Tekan hitung untuk melihat detail...</div>
+        </div>
+        <div id="tab-detail" class="tab-panel">
+          <div class="log-box" id="logDetail">Tekan hitung untuk melihat ringkasan...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       DATA OBSERVASI
+  ========================================================= -->
+  <div class="section-head">// <span>Data</span> Observasi 30 Titik</div>
+  <div class="data-tabs">
+    <button class="data-tab active" onclick="switchData(0,this)">Hari 1</button>
+    <button class="data-tab" onclick="switchData(1,this)">Hari 2</button>
+    <button class="data-tab" onclick="switchData(2,this)">Hari 3</button>
+    <button class="data-tab" onclick="switchData(3,this)">Rata-rata</button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table id="dataTable">
+      <thead><tr><th>#</th><th>Waktu</th><th>Desimal</th><th>Suhu (°C)</th><th>Status</th></tr></thead>
+      <tbody id="dataBody"></tbody>
+    </table>
+  </div>
+
+  <!-- =========================================================
+       FORMULA PSEUDOCODE
+  ========================================================= -->
+  <div class="section-head">// <span>Algoritma</span> & Formula</div>
+  <div class="formula-grid">
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-blue">Lagrange</span></div>
+      <div class="formula-body">
+<span class="kw">function</span> <span class="fn">hitungSuhuLagrange</span>(X, Y, x):<br>
+&nbsp;&nbsp;hasil = <span class="num">0</span><br>
+&nbsp;&nbsp;<span class="kw">for</span> i <span class="kw">in</span> range(n):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Li = <span class="num">1.0</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> j ≠ i:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Li *= (x - X[j]) / (X[i] - X[j])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;hasil += Y[i] * Li<br>
+&nbsp;&nbsp;<span class="kw">return</span> hasil<br>
+<span class="cmt">// Kompleksitas: O(n²)</span>
+      </div>
+    </div>
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-green">Newton Div. Diff.</span></div>
+      <div class="formula-body">
+<span class="kw">function</span> <span class="fn">buatTabelSelisih</span>(X, Y):<br>
+&nbsp;&nbsp;tbl[i][<span class="num">0</span>] = Y[i] &nbsp;<span class="cmt">// orde-0</span><br>
+&nbsp;&nbsp;tbl[i][j] = (tbl[i+<span class="num">1</span>][j-<span class="num">1</span>] - tbl[i][j-<span class="num">1</span>])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ (X[i+j] - X[i])<br><br>
+<span class="kw">function</span> <span class="fn">hitungSuhuNewton</span>(X, tbl, x):<br>
+&nbsp;&nbsp;P = tbl[<span class="num">0</span>][<span class="num">0</span>]; prod = <span class="num">1</span><br>
+&nbsp;&nbsp;<span class="kw">for</span> i = <span class="num">1</span> .. n:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;prod *= (x - X[i-<span class="num">1</span>])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;P += tbl[<span class="num">0</span>][i] * prod<br>
+&nbsp;&nbsp;<span class="kw">return</span> P
+      </div>
+    </div>
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-amber">Gauss-Seidel</span></div>
+      <div class="formula-body">
+<span class="kw">validasi:</span> |a_ii| ≥ Σ|a_ij| (j≠i)<br><br>
+<span class="kw">for</span> iter = <span class="num">1</span> .. maxIt:<br>
+&nbsp;&nbsp;<span class="kw">for</span> i = <span class="num">0</span> .. n-<span class="num">1</span>:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;σ = Σ a[i][j] * x[j] &nbsp;<span class="cmt">(j≠i)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;x[i] = (b[i] - σ) / a[i][i]<br>
+&nbsp;&nbsp;err = max|Δx/x| * <span class="num">100</span>%<br>
+&nbsp;&nbsp;<span class="kw">if</span> err &lt; tol: <span class="str">konvergen ✓</span><br>
+<span class="cmt">// Pakai nilai terbaru langsung (Seidel)</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>// Kalkulator Suhu Server — Metode Numerik</span>
+    <span>Data: 30 titik observasi, 3 hari, jam 08:00–17:00</span>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

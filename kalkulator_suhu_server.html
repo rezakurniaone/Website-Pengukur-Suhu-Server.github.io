@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator Suhu Server — Metode Numerik</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     RESET & BASE
+  ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --bg2:       #13161e;
+    --bg3:       #1a1e2a;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.13);
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --accent1:   #3b82f6;   /* biru — Lagrange   */
+    --accent2:   #10b981;   /* hijau — Newton     */
+    --accent3:   #f59e0b;   /* amber — Gauss-Seidel */
+    --red:       #ef4444;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ============================================================
+     LAYOUT
+  ============================================================ */
+  .page { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
+  header {
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .header-left {}
+  .header-tag {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent1);
+    margin-bottom: 10px;
+    font-family: var(--font-mono);
+  }
+  header h1 {
+    font-family: var(--font-head);
+    font-size: clamp(26px, 4vw, 42px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    color: #fff;
+  }
+  header h1 span { color: var(--accent1); }
+  .header-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-meta span::before { content: "// "; color: var(--accent1); }
+  .badge-methods {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid;
+    letter-spacing: .04em;
+  }
+  .badge-blue  { color: var(--accent1); border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.08); }
+  .badge-green { color: var(--accent2); border-color: rgba(16,185,129,.35); background: rgba(16,185,129,.08); }
+  .badge-amber { color: var(--accent3); border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); }
+
+  /* ============================================================
+     MAIN GRID
+  ============================================================ */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 820px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ============================================================
+     CARDS
+  ============================================================ */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-title {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent1);
+    display: inline-block;
+  }
+
+  /* ============================================================
+     INPUT PANEL (KIRI)
+  ============================================================ */
+  .input-panel { display: flex; flex-direction: column; gap: 20px; }
+
+  .field-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .waktu-display {
+    font-family: var(--font-head);
+    font-size: 52px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -.03em;
+  }
+  .waktu-display .unit { font-size: 20px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .waktu-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    font-family: var(--font-mono);
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin: 12px 0 4px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent1);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--accent1);
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  input[type="number"] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input[type="number"]:focus { border-color: var(--accent1); }
+
+  .btn-calc {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent1);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font-head);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+  }
+  .btn-calc:hover { opacity: .88; }
+  .btn-calc:active { transform: scale(.98); }
+
+  /* ============================================================
+     RESULT CARDS
+  ============================================================ */
+  .result-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 600px) { .result-row { grid-template-columns: 1fr; } }
+
+  .res-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .res-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .res-card.lag::before  { background: var(--accent1); }
+  .res-card.nwt::before  { background: var(--accent2); }
+  .res-card.gs::before   { background: var(--accent3); }
+  .res-card.lag { border-color: rgba(59,130,246,.2); }
+  .res-card.nwt { border-color: rgba(16,185,129,.2); }
+  .res-card.gs  { border-color: rgba(245,158,11,.2); }
+
+  .res-method {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .res-val {
+    font-family: var(--font-head);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .res-card.lag .res-val { color: var(--accent1); }
+  .res-card.nwt .res-val { color: var(--accent2); }
+  .res-card.gs  .res-val { color: var(--accent3); }
+  .res-unit { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .res-diff { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ============================================================
+     CHART
+  ============================================================ */
+  .chart-wrap {
+    position: relative;
+    height: 280px;
+    margin-bottom: 20px;
+  }
+
+  /* ============================================================
+     TABS (LOG DETAIL)
+  ============================================================ */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg3);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    letter-spacing: .02em;
+  }
+  .tab-btn.active {
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .log-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--muted);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .log-box .ok    { color: var(--accent2); }
+  .log-box .hi    { color: var(--accent1); }
+  .log-box .warn  { color: var(--accent3); }
+  .log-box .err   { color: var(--red); }
+  .log-box .head  { color: var(--text); font-weight: 500; }
+  .log-box .kw    { color: #c084fc; }
+  .log-box .num   { color: var(--accent3); }
+
+  /* ============================================================
+     DATA TABLE SECTION
+  ============================================================ */
+  .section-head {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin: 48px 0 20px;
+    padding-top: 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-head span { color: var(--accent1); }
+
+  .data-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .data-tab {
+    padding: 6px 16px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .data-tab.active {
+    border-color: var(--accent1);
+    color: var(--accent1);
+    background: rgba(59,130,246,.08);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  thead tr { background: var(--bg3); }
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .td-time { color: var(--muted); }
+  .td-hot  { color: var(--red); }
+  .td-warm { color: var(--accent3); }
+  .td-cool { color: var(--accent2); }
+
+  /* ============================================================
+     FORMULA SECTION
+  ============================================================ */
+  .formula-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .formula-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .formula-title {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .formula-body {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 2;
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .formula-body .kw    { color: #c084fc; }
+  .formula-body .fn    { color: var(--accent1); }
+  .formula-body .num   { color: var(--accent3); }
+  .formula-body .cmt   { color: #4b5563; }
+  .formula-body .str   { color: var(--accent2); }
+
+  /* ============================================================
+     FOOTER
+  ============================================================ */
+  footer {
+    margin-top: 80px;
+    padding: 24px 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ============================================================
+     SCROLLBAR
+  ============================================================ */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ============================================================
+     GAUSS-SEIDEL PANEL
+  ============================================================ */
+  .gs-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .gs-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .gs-row span { color: var(--muted); font-size: 12px; min-width: 18px; }
+  .gs-row input[type="text"] {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    outline: none;
+  }
+  .gs-row input[type="text"]:focus { border-color: var(--accent3); }
+  .gs-row .eq { color: var(--accent3); font-size: 13px; }
+  .gs-row input.b-input {
+    width: 70px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 7px 10px;
+    color: var(--accent3);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    outline: none;
+  }
+  .btn-gs {
+    width: 100%;
+    padding: 10px;
+    background: rgba(245,158,11,.15);
+    border: 1px solid rgba(245,158,11,.4);
+    color: var(--accent3);
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .2s;
+    margin-bottom: 12px;
+    letter-spacing: .04em;
+  }
+  .btn-gs:hover { background: rgba(245,158,11,.25); }
+
+  .param-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .param-row label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .param-row input[type="number"] { padding: 7px 10px; font-size: 12px; }
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- =========================================================
+       HEADER
+  ========================================================= -->
+  <header>
+    <div class="header-left">
+      <div class="header-tag">Komputasi Numerik // Suhu Server</div>
+      <h1>Kalkulator<br><span>Suhu</span> Server</h1>
+      <div class="header-meta">
+        <span>30 titik observasi (3 hari)</span>
+        <span>Rentang: 08:00 – 17:00</span>
+        <span>3 metode numerik</span>
+      </div>
+    </div>
+    <div class="badge-methods">
+      <div class="badge badge-blue">Lagrange</div>
+      <div class="badge badge-green">Newton Div. Diff.</div>
+      <div class="badge badge-amber">Gauss-Seidel</div>
+    </div>
+  </header>
+
+  <!-- =========================================================
+       MAIN GRID
+  ========================================================= -->
+  <div class="main-grid">
+
+    <!-- ---- PANEL KIRI: Input ---- -->
+    <div class="input-panel">
+
+      <!-- Kartu Input Waktu -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Input Waktu</div>
+
+        <div class="field-label">Waktu yang diprediksi</div>
+        <div class="waktu-display">
+          <span id="dispJam">08</span>:<span id="dispMenit">30</span>
+          <span class="unit">WIB</span>
+        </div>
+        <div class="waktu-sub">Desimal: <span id="dispDes">8.5</span> jam</div>
+
+        <input type="range" id="sliderWaktu" min="8" max="17" step="0.1" value="8.5"
+               oninput="onSlider(this.value)">
+        <div class="range-labels"><span>08:00</span><span>12:30</span><span>17:00</span></div>
+
+        <div style="margin-top:16px">
+          <div class="field-label">Atau ketik langsung (format desimal)</div>
+          <input type="number" id="inputManual" value="8.5" min="8" max="17" step="0.1"
+                 placeholder="cth: 13.5"
+                 oninput="onManual(this.value)">
+        </div>
+
+        <button class="btn-calc" style="margin-top:16px" onclick="compute()">
+          ▶ &nbsp;Hitung Prediksi Suhu
+        </button>
+        <div id="errBox" style="display:none;font-size:12px;color:var(--red);margin-top:10px;padding:8px 12px;background:rgba(239,68,68,.08);border-radius:6px;border:1px solid rgba(239,68,68,.2)">
+          ⚠ Waktu harus dalam rentang 8.0 – 17.0
+        </div>
+      </div>
+
+      <!-- Kartu Gauss-Seidel SPL -->
+      <div class="card">
+        <div class="card-title" style="--dot-c:var(--accent3)">
+          <span class="dot" style="background:var(--accent3)"></span>Uji SPL Gauss-Seidel
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          Masukkan sistem Ax = b (3×3).<br>Matriks harus <strong style="color:var(--accent3)">dominan diagonal</strong>.
+        </p>
+        <div class="gs-row"><span>A₁:</span><input type="text" id="gsA1" value="10 1 1"><span class="eq">=</span><input class="b-input" id="gsB1" value="12"></div>
+        <div class="gs-row"><span>A₂:</span><input type="text" id="gsA2" value="2 10 1"><span class="eq">=</span><input class="b-input" id="gsB2" value="13"></div>
+        <div class="gs-row"><span>A₃:</span><input type="text" id="gsA3" value="1 2 10"><span class="eq">=</span><input class="b-input" id="gsB3" value="13"></div>
+        <div class="param-row" style="margin-top:10px">
+          <div><label>Toleransi error (%)</label><input type="number" id="gsTol" value="0.0001" step="0.00001"></div>
+          <div><label>Maks iterasi</label><input type="number" id="gsMaxIt" value="100"></div>
+        </div>
+        <button class="btn-gs" onclick="jalanGS()">⟳ &nbsp;Jalankan Iterasi Gauss-Seidel</button>
+        <div class="log-box" id="logGs">Tekan tombol untuk menjalankan...</div>
+      </div>
+
+    </div>
+
+    <!-- ---- PANEL KANAN: Hasil & Grafik ---- -->
+    <div>
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Hasil Prediksi</div>
+
+        <!-- 3 Result Cards -->
+        <div class="result-row">
+          <div class="res-card lag">
+            <div class="res-method">Lagrange</div>
+            <div class="res-val" id="resLag">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffLag"></div>
+          </div>
+          <div class="res-card nwt">
+            <div class="res-method">Newton</div>
+            <div class="res-val" id="resNwt">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffNwt"></div>
+          </div>
+          <div class="res-card gs">
+            <div class="res-method">Gauss-Seidel</div>
+            <div class="res-val" id="resGs">—</div>
+            <div class="res-unit">°C</div>
+            <div class="res-diff" id="diffGs"></div>
+          </div>
+        </div>
+
+        <!-- Grafik -->
+        <div class="chart-wrap">
+          <canvas id="mainChart"></canvas>
+        </div>
+
+        <!-- Tab Log Detail -->
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('lag',this)">fn lagrange( )</button>
+          <button class="tab-btn" onclick="switchTab('nwt',this)">fn newton( )</button>
+          <button class="tab-btn" onclick="switchTab('detail',this)">∑ ringkasan</button>
+        </div>
+        <div id="tab-lag" class="tab-panel active">
+          <div class="log-box" id="logLag">Tekan hitung untuk melihat detail...</div>
+        </div>
+        <div id="tab-nwt" class="tab-panel">
+          <div class="log-box" id="logNwt">Tekan hitung untuk melihat detail...</div>
+        </div>
+        <div id="tab-detail" class="tab-panel">
+          <div class="log-box" id="logDetail">Tekan hitung untuk melihat ringkasan...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       DATA OBSERVASI
+  ========================================================= -->
+  <div class="section-head">// <span>Data</span> Observasi 30 Titik</div>
+  <div class="data-tabs">
+    <button class="data-tab active" onclick="switchData(0,this)">Hari 1</button>
+    <button class="data-tab" onclick="switchData(1,this)">Hari 2</button>
+    <button class="data-tab" onclick="switchData(2,this)">Hari 3</button>
+    <button class="data-tab" onclick="switchData(3,this)">Rata-rata</button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table id="dataTable">
+      <thead><tr><th>#</th><th>Waktu</th><th>Desimal</th><th>Suhu (°C)</th><th>Status</th></tr></thead>
+      <tbody id="dataBody"></tbody>
+    </table>
+  </div>
+
+  <!-- =========================================================
+       FORMULA PSEUDOCODE
+  ========================================================= -->
+  <div class="section-head">// <span>Algoritma</span> & Formula</div>
+  <div class="formula-grid">
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-blue">Lagrange</span></div>
+      <div class="formula-body">
+<span class="kw">function</span> <span class="fn">hitungSuhuLagrange</span>(X, Y, x):<br>
+&nbsp;&nbsp;hasil = <span class="num">0</span><br>
+&nbsp;&nbsp;<span class="kw">for</span> i <span class="kw">in</span> range(n):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Li = <span class="num">1.0</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> j ≠ i:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Li *= (x - X[j]) / (X[i] - X[j])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;hasil += Y[i] * Li<br>
+&nbsp;&nbsp;<span class="kw">return</span> hasil<br>
+<span class="cmt">// Kompleksitas: O(n²)</span>
+      </div>
+    </div>
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-green">Newton Div. Diff.</span></div>
+      <div class="formula-body">
+<span class="kw">function</span> <span class="fn">buatTabelSelisih</span>(X, Y):<br>
+&nbsp;&nbsp;tbl[i][<span class="num">0</span>] = Y[i] &nbsp;<span class="cmt">// orde-0</span><br>
+&nbsp;&nbsp;tbl[i][j] = (tbl[i+<span class="num">1</span>][j-<span class="num">1</span>] - tbl[i][j-<span class="num">1</span>])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ (X[i+j] - X[i])<br><br>
+<span class="kw">function</span> <span class="fn">hitungSuhuNewton</span>(X, tbl, x):<br>
+&nbsp;&nbsp;P = tbl[<span class="num">0</span>][<span class="num">0</span>]; prod = <span class="num">1</span><br>
+&nbsp;&nbsp;<span class="kw">for</span> i = <span class="num">1</span> .. n:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;prod *= (x - X[i-<span class="num">1</span>])<br>
+&nbsp;&nbsp;&nbsp;&nbsp;P += tbl[<span class="num">0</span>][i] * prod<br>
+&nbsp;&nbsp;<span class="kw">return</span> P
+      </div>
+    </div>
+
+    <div class="formula-card">
+      <div class="formula-title"><span class="badge badge-amber">Gauss-Seidel</span></div>
+      <div class="formula-body">
+<span class="kw">validasi:</span> |a_ii| ≥ Σ|a_ij| (j≠i)<br><br>
+<span class="kw">for</span> iter = <span class="num">1</span> .. maxIt:<br>
+&nbsp;&nbsp;<span class="kw">for</span> i = <span class="num">0</span> .. n-<span class="num">1</span>:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;σ = Σ a[i][j] * x[j] &nbsp;<span class="cmt">(j≠i)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;x[i] = (b[i] - σ) / a[i][i]<br>
+&nbsp;&nbsp;err = max|Δx/x| * <span class="num">100</span>%<br>
+&nbsp;&nbsp;<span class="kw">if</span> err &lt; tol: <span class="str">konvergen ✓</span><br>
+<span class="cmt">// Pakai nilai terbaru langsung (Seidel)</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>// Kalkulator Suhu Server — Metode Numerik</span>
+    <span>Data: 30 titik observasi, 3 hari, jam 08:00–17:00</span>
+  </footer>
+
+</div>
+
+<!-- =========================================================
+     JAVASCRIPT — SEMUA LOGIKA NUMERIK
+========================================================= -->
+<script>
+/* ============================================================
+   DATA SUHU SERVER (3 HARI)
+============================================================ */
+const JAM   = [8,9,10,11,12,13,14,15,16,17];
+const JAM_LBL = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00'];
+const HARI1 = [25.2,26.4,26.8,27.4,27.5,28.0,28.1,28.0,27.8,27.3];
+const HARI2 = [25.4,26.1,26.9,27.6,27.8,28.2,28.3,28.1,27.7,27.4];
+const HARI3 = [25.0,26.2,26.7,27.2,27.7,27.9,28.0,27.8,27.5,27.1];
+const AVG   = JAM.map((_,i)=>+((HARI1[i]+HARI2[i]+HARI3[i])/3).toFixed(4));
+
+/* ============================================================
+   METODE 1: INTERPOLASI LAGRANGE
+   P(x) = Σ yᵢ * Lᵢ(x)
+   Lᵢ(x) = Π (x-xⱼ)/(xᵢ-xⱼ) untuk j≠i
+============================================================ */
+function hitungSuhuLagrange(xs, ys, x) {
+  let hasil = 0;
+  const n = xs.length;
+  for (let i = 0; i < n; i++) {
+    let Li = 1;
+    for (let j = 0; j < n; j++) {
+      if (j !== i) Li *= (x - xs[j]) / (xs[i] - xs[j]);
+    }
+    hasil += ys[i] * Li;
+  }
+  return hasil;
+}
+
+/* ============================================================
+   METODE 2A: BUAT TABEL SELISIH TERBAGI
+   tbl[i][j] = (tbl[i+1][j-1] - tbl[i][j-1]) / (x[i+j] - x[i])
+============================================================ */
+function buatTabelSelisih(xs, ys) {
+  const n = xs.length;
+  const tbl = Array.from({length:n}, () => Array(n).fill(0));
+  for (let i = 0; i < n; i++) tbl[i][0] = ys[i];
+  for (let j = 1; j < n; j++)
+    for (let i = 0; i < n - j; i++)
+      tbl[i][j] = (tbl[i+1][j-1] - tbl[i][j-1]) / (xs[i+j] - xs[i]);
+  return tbl;
+}
+
+/* ============================================================
+   METODE 2B: HITUNG NEWTON DARI TABEL SELISIH
+   P(x) = f[x₀] + f[x₀,x₁](x-x₀) + f[x₀,x₁,x₂](x-x₀)(x-x₁) + ...
+============================================================ */
+function hitungSuhuNewton(xs, tbl, x) {
+  let hasil = tbl[0][0];
+  let prod  = 1;
+  for (let i = 1; i < xs.length; i++) {
+    prod  *= (x - xs[i-1]);
+    hasil += tbl[0][i] * prod;
+  }
+  return hasil;
+}
+
+/* ============================================================
+   METODE 3A: VALIDASI DOMINAN DIAGONAL
+   |a_ii| >= Σ|a_ij| untuk semua j≠i, minimal satu ketat
+============================================================ */
+function isDiagDom(A) {
+  let ketat = false;
+  const n = A.length;
+  for (let i = 0; i < n; i++) {
+    const diag = Math.abs(A[i][i]);
+    let sum = 0;
+    for (let j = 0; j < n; j++) if (j !== i) sum += Math.abs(A[i][j]);
+    if (diag < sum) return false;
+    if (diag > sum) ketat = true;
+  }
+  return ketat;
+}
+
+/* ============================================================
+   METODE 3B: GAUSS-SEIDEL
+   Iterasi: x[i] = (b[i] - Σa[i][j]*x[j]) / a[i][i]
+   Berhenti jika error < tol ATAU iterasi > maxIt
+============================================================ */
+function hitungSPLGaussSeidel(A, b, x0, tol, maxIt) {
+  const n = b.length;
+  let x = [...x0];
+  const hist = [];
+
+  if (!isDiagDom(A)) {
+    return { error: 'Matriks TIDAK dominan diagonal! Iterasi mungkin tidak konvergen.' };
+  }
+
+  for (let iter = 1; iter <= maxIt; iter++) {
+    const xLama = [...x];
+    for (let i = 0; i < n; i++) {
+      let sigma = 0;
+      for (let j = 0; j < n; j++) if (j !== i) sigma += A[i][j] * x[j];
+      x[i] = (b[i] - sigma) / A[i][i];
+    }
+    // Hitung Error Relatif Absolut maksimum
+    let errMaks = 0;
+    for (let i = 0; i < n; i++) {
+      if (x[i] !== 0) {
+        const e = Math.abs((x[i] - xLama[i]) / x[i]) * 100;
+        if (e > errMaks) errMaks = e;
+      }
+    }
+    hist.push(+errMaks.toFixed(8));
+    if (errMaks < tol) return { sol: x, iter, konvergen: true, hist };
+  }
+  return { sol: x, iter: maxIt, konvergen: false, hist };
+}
+
+/* ============================================================
+   PREDIKSI SUHU DENGAN GAUSS-SEIDEL (via polinomial kuadratik)
+   Ambil 3 titik terdekat, susun SPL y = a0 + a1*x + a2*x²
+   Selesaikan koefisien, evaluasi di waktuInput
+============================================================ */
+function prediksiSuhuGaussSeidel(xs, ys, x, deg) {
+  deg = deg || 2;
+  const nPt = deg + 1;
+  // Urutkan titik berdasarkan jarak ke x
+  const dist = xs.map((v,i) => ({d: Math.abs(v-x), i}))
+                 .sort((a,b) => a.d - b.d);
+  const idx  = dist.slice(0, nPt).map(o => o.i).sort((a,b) => a-b);
+  const xp   = idx.map(i => xs[i]);
+  const yp   = idx.map(i => ys[i]);
+
+  // Bangun matriks Vandermonde: A[i][j] = xp[i]^j
+  const A = xp.map(xv => Array.from({length:nPt}, (_,j) => Math.pow(xv,j)));
+  const b = [...yp];
+
+  // Coba buat dominan diagonal dengan partial pivoting sederhana
+  let Ac = A.map(r => [...r]), bc = [...b];
+  for (let col = 0; col < nPt; col++) {
+    let maxRow = col;
+    for (let r = col+1; r < nPt; r++)
+      if (Math.abs(Ac[r][col]) > Math.abs(Ac[maxRow][col])) maxRow = r;
+    [Ac[col], Ac[maxRow]] = [Ac[maxRow], Ac[col]];
+    [bc[col], bc[maxRow]] = [bc[maxRow], bc[col]];
+  }
+
+  let koef;
+  if (isDiagDom(Ac)) {
+    const r = hitungSPLGaussSeidel(Ac, bc, Array(nPt).fill(0), 0.0001, 200);
+    koef = r.sol || bc; // fallback
+  } else {
+    // Gauss eliminasi sederhana sebagai fallback
+    koef = solveGaussElim(Ac, bc);
+  }
+  // Evaluasi polinomial
+  return koef.reduce((acc, c, j) => acc + c * Math.pow(x, j), 0);
+}
+
+// Gauss eliminasi (fallback jika tidak dominan diagonal)
+function solveGaussElim(A, b) {
+  const n = b.length;
+  let M = A.map((r,i) => [...r, b[i]]);
+  for (let col = 0; col < n; col++) {
+    for (let row = col+1; row < n; row++) {
+      const f = M[row][col] / M[col][col];
+      for (let k = col; k <= n; k++) M[row][k] -= f * M[col][k];
+    }
+  }
+  const x = Array(n).fill(0);
+  for (let i = n-1; i >= 0; i--) {
+    x[i] = M[i][n];
+    for (let j = i+1; j < n; j++) x[i] -= M[i][j] * x[j];
+    x[i] /= M[i][i];
+  }
+  return x;
+}
+
+/* ============================================================
+   KONVERSI DESIMAL → JAM:MENIT
+============================================================ */
+function desToJam(d) {
+  const jam   = Math.floor(d);
+  const menit = Math.round((d - jam) * 60);
+  return {
+    jam:   String(jam).padStart(2,'0'),
+    menit: String(menit).padStart(2,'0'),
+    label: String(jam).padStart(2,'0') + ':' + String(menit).padStart(2,'0')
+  };
+}
+
+/* ============================================================
+   STATE & CHART
+============================================================ */
+let chartObj = null;
+let xSaat    = 8.5;
+
+function updateDisplay(x) {
+  xSaat = x;
+  const jm = desToJam(x);
+  document.getElementById('dispJam').textContent   = jm.jam;
+  document.getElementById('dispMenit').textContent = jm.menit;
+  document.getElementById('dispDes').textContent   = (+x).toFixed(1);
+}
+
+function onSlider(v) {
+  document.getElementById('inputManual').value = v;
+  updateDisplay(parseFloat(v));
+}
+
+function onManual(v) {
+  const f = parseFloat(v);
+  if (!isNaN(f)) {
+    document.getElementById('sliderWaktu').value = f;
+    updateDisplay(f);
+  }
+}
+
+/* ============================================================
+   COMPUTE — Dipanggil saat tombol ditekan
+============================================================ */
+function compute() {
+  const x = parseFloat(document.getElementById('inputManual').value);
+  const errBox = document.getElementById('errBox');
+  if (isNaN(x) || x < 8 || x > 17) {
+    errBox.style.display = 'block';
+    return;
+  }
+  errBox.style.display = 'none';
+  updateDisplay(x);
+
+  // === Hitung ketiga metode ===
+  const tbl = buatTabelSelisih(JAM, AVG);
+  const vL  = hitungSuhuLagrange(JAM, AVG, x);
+  const vN  = hitungSuhuNewton(JAM, tbl, x);
+  const vG  = prediksiSuhuGaussSeidel(JAM, AVG, x, 2);
+
+  // === Tampilkan hasil ===
+  document.getElementById('resLag').textContent = vL.toFixed(4);
+  document.getElementById('resNwt').textContent = vN.toFixed(4);
+  document.getElementById('resGs').textContent  = vG.toFixed(4);
+
+  const avg3 = (vL + vN + vG) / 3;
+  document.getElementById('diffLag').textContent = 'Δ dari avg: ' + (vL - avg3).toFixed(4);
+  document.getElementById('diffNwt').textContent = 'Δ dari avg: ' + (vN - avg3).toFixed(4);
+  document.getElementById('diffGs').textContent  = 'Δ dari avg: ' + (vG - avg3).toFixed(4);
+
+  // === Grafik ===
+  drawChart(x, vL, vN, vG);
+
+  // === Log Lagrange ===
+  let logL = [`<span class="head">hitungSuhuLagrange(JAM, AVG, ${x})</span>`, ''];
+  let totalL = 0;
+  for (let i = 0; i < JAM.length; i++) {
+    let Li = 1;
+    for (let j = 0; j < JAM.length; j++) if (j !== i) Li *= (x - JAM[j]) / (JAM[i] - JAM[j]);
+    const suku = AVG[i] * Li;
+    totalL += suku;
+    logL.push(`  <span class="kw">L</span><sub>${i}</sub>(${x}) = <span class="num">${Li.toFixed(6)}</span>  →  suku = <span class="num">${suku.toFixed(6)}</span>`);
+  }
+  logL.push('');
+  logL.push(`  <span class="ok">Hasil = ${vL.toFixed(6)} °C</span>`);
+  document.getElementById('logLag').innerHTML = logL.join('<br>');
+
+  // === Log Newton ===
+  let logN = [`<span class="head">hitungSuhuNewton(JAM, tabelSelisih, ${x})</span>`, ''];
+  logN.push('  Koefisien f[x₀,...,xₖ] (baris-0 tabel selisih terbagi):');
+  for (let j = 0; j < JAM.length; j++) {
+    logN.push(`  &nbsp;&nbsp;orde-<span class="num">${j}</span>: <span class="num">${tbl[0][j].toFixed(8)}</span>`);
+  }
+  logN.push('');
+  logN.push(`  <span class="ok">Hasil = ${vN.toFixed(6)} °C</span>`);
+  document.getElementById('logNwt').innerHTML = logN.join('<br>');
+
+  // === Log Ringkasan ===
+  let logD = [
+    `<span class="head">Ringkasan Prediksi Suhu — Jam ${desToJam(x).label}</span>`,
+    '',
+    `  <span class="hi">Lagrange    :</span> <span class="num">${vL.toFixed(4)}</span> °C`,
+    `  <span class="ok">Newton      :</span> <span class="num">${vN.toFixed(4)}</span> °C`,
+    `  <span class="warn">Gauss-Seidel:</span> <span class="num">${vG.toFixed(4)}</span> °C`,
+    '',
+    `  Rata-rata ketiga metode : <span class="num">${avg3.toFixed(4)}</span> °C`,
+    `  Selisih Lagrange–Newton : <span class="num">${Math.abs(vL-vN).toExponential(3)}</span>`,
+    '',
+    `  <span class="kw">Data rata-rata</span> jam terdekat:`,
+  ];
+  JAM.forEach((j,i) => {
+    const jarak = Math.abs(j - x);
+    if (jarak <= 1.0) {
+      logD.push(`  &nbsp;&nbsp;Jam ${JAM_LBL[i]} → <span class="num">${AVG[i].toFixed(4)}</span> °C  (Δ = ${jarak.toFixed(1)} jam)`);
+    }
+  });
+  document.getElementById('logDetail').innerHTML = logD.join('<br>');
+}
+
+/* ============================================================
+   CHART.JS
+============================================================ */
+function drawChart(x, vL, vN, vG) {
+  const pts = [];
+  for (let t = 8; t <= 17; t += 0.05) {
+    pts.push({ x: +t.toFixed(2), y: +hitungSuhuLagrange(JAM, AVG, t).toFixed(4) });
+  }
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  if (chartObj) chartObj.destroy();
+
+  chartObj = new Chart(ctx, {
+    data: {
+      datasets: [
+        {
+          type: 'line',
+          label: 'Kurva Lagrange',
+          data: pts,
+          borderColor: '#3b82f6',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+          order: 3
+        },
+        {
+          type: 'scatter',
+          label: 'Data rata-rata',
+          data: JAM.map((j,i) => ({x:j, y:AVG[i]})),
+          backgroundColor: '#10b981',
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          order: 2
+        },
+        {
+          type: 'scatter',
+          label: `Titik x=${x} (Lag)`,
+          data: [{x, y: +vL.toFixed(4)}],
+          backgroundColor: '#3b82f6',
+          pointRadius: 9,
+          pointStyle: 'rectRot',
+          order: 1
+        },
+        {
+          type: 'scatter',
+          label: `Titik x=${x} (Nwt)`,
+          data: [{x, y: +vN.toFixed(4)}],
+          backgroundColor: '#10b981',
+          pointRadius: 7,
+          pointStyle: 'triangle',
+          order: 1
+        },
+        {
+          type: 'scatter',
+          label: `Titik x=${x} (GS)`,
+          data: [{x, y: +vG.toFixed(4)}],
+          backgroundColor: '#f59e0b',
+          pointRadius: 7,
+          pointStyle: 'cross',
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#6b7280',
+            font: { family: "'IBM Plex Mono', monospace", size: 11 },
+            boxWidth: 12, boxHeight: 12, padding: 12
+          }
+        },
+        tooltip: {
+          backgroundColor: '#13161e',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#e8eaf0',
+          bodyColor: '#6b7280',
+          titleFont: { family: "'IBM Plex Mono', monospace", size: 12 },
+          bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${(+ctx.parsed.y).toFixed(4)} °C`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear', min: 7.8, max: 17.2,
+          title: { display: true, text: 'Waktu (jam desimal)', color: '#6b7280', font: { size: 11, family: "'IBM Plex Mono', monospace" } },
+          ticks: { color: '#6b7280', font: { size: 11 } },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          title: { display: true, text: 'Suhu (°C)', color: '#6b7280', font: { size: 11, family: "'IBM Plex Mono', monospace" } },
+          ticks: { color: '#6b7280', font: { size: 11 } },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      }
+    }
+  });
+}
+
+/* ============================================================
+   GAUSS-SEIDEL PANEL
+============================================================ */
+function jalanGS() {
+  const parseRow = id => document.getElementById(id).value.trim().split(/\s+/).map(Number);
+  const A = [parseRow('gsA1'), parseRow('gsA2'), parseRow('gsA3')];
+  const b = ['gsB1','gsB2','gsB3'].map(id => parseFloat(document.getElementById(id).value));
+  const tol   = parseFloat(document.getElementById('gsTol').value);
+  const maxIt = parseInt(document.getElementById('gsMaxIt').value);
+  const el = document.getElementById('logGs');
+
+  const r = hitungSPLGaussSeidel(A, b, [0,0,0], tol, maxIt);
+  if (r.error) {
+    el.innerHTML = `<span class="err">✗ ${r.error}</span><br><span class="warn">Pastikan |a_ii| ≥ Σ|a_ij| untuk setiap baris i.</span>`;
+    return;
+  }
+  const lines = [
+    `<span class="head">Hasil Gauss-Seidel — SPL 3×3</span>`,
+    '',
+    `  Solusi <span class="kw">x</span> = [${r.sol.map(v => v.toFixed(6)).join(', ')}]`,
+    `  Iterasi   : <span class="num">${r.iter}</span> / ${maxIt}`,
+    `  Konvergen : ${r.konvergen ? '<span class="ok">✓ YA</span>' : '<span class="err">✗ TIDAK (maxIterasi tercapai)</span>'}`,
+    `  Error akhir : <span class="num">${r.hist[r.hist.length-1]}</span> %`,
+    '',
+    `  <span class="kw">Riwayat error (10 iterasi pertama):</span>`,
+    ...r.hist.slice(0,10).map((e,i) =>
+      `  &nbsp;&nbsp;iter <span class="num">${String(i+1).padStart(2)}</span>: ${e} %`
+    )
+  ];
+  el.innerHTML = lines.join('<br>');
+}
+
+/* ============================================================
+   TAB SWITCHING
+============================================================ */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+/* ============================================================
+   DATA TABLE
+============================================================ */
+const ALL_DATA = [HARI1, HARI2, HARI3, AVG];
+const DAY_LABELS = ['Hari 1', 'Hari 2', 'Hari 3', 'Rata-rata'];
+let activeDay = 0;
+
+function switchData(idx, btn) {
+  activeDay = idx;
+  document.querySelectorAll('.data-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable(idx);
+}
+
+function suhuClass(s) {
+  if (s >= 28.0) return 'td-hot';
+  if (s >= 27.5) return 'td-warm';
+  return 'td-cool';
+}
+function statusLabel(s) {
+  if (s >= 28.0) return '⬆ Tinggi';
+  if (s >= 27.5) return '→ Sedang';
+  return '⬇ Normal';
+}
+
+function renderTable(dayIdx) {
+  const ys = ALL_DATA[dayIdx];
+  const tbody = document.getElementById('dataBody');
+  tbody.innerHTML = JAM.map((j,i) => {
+    const s = ys[i];
+    const cls = suhuClass(s);
+    return `<tr>
+      <td class="td-time">${String(i+1).padStart(2,'0')}</td>
+      <td>${JAM_LBL[i]}</td>
+      <td class="td-time">${j.toFixed(1)}</td>
+      <td class="${cls}" style="font-weight:500">${s.toFixed(4)}</td>
+      <td class="${cls}">${statusLabel(s)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+renderTable(0);
+updateDisplay(8.5);
+// Gambar grafik awal tanpa titik prediksi dulu
+(function initChart(){
+  const pts = [];
+  for (let t = 8; t <= 17; t += 0.05)
+    pts.push({x:+t.toFixed(2), y:+hitungSuhuLagrange(JAM,AVG,t).toFixed(4)});
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  chartObj = new Chart(ctx, {
+    data: {
+      datasets: [
+        { type:'line', label:'Kurva Lagrange', data:pts, borderColor:'#3b82f6', borderWidth:2, pointRadius:0, fill:false, tension:0.3 },
+        { type:'scatter', label:'Data rata-rata', data:JAM.map((j,i)=>({x:j,y:AVG[i]})), backgroundColor:'#10b981', pointRadius:5 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#6b7280',font:{family:"'IBM Plex Mono',monospace",size:11},boxWidth:12,boxHeight:12,padding:12}},
+        tooltip:{backgroundColor:'#13161e',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,titleColor:'#e8eaf0',bodyColor:'#6b7280',titleFont:{family:"'IBM Plex Mono',monospace",size:12},bodyFont:{family:"'IBM Plex Mono',monospace",size:11}}
+      },
+      scales:{
+        x:{type:'linear',min:7.8,max:17.2,title:{display:true,text:'Waktu (jam desimal)',color:'#6b7280',font:{size:11}},ticks:{color:'#6b7280',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}},
+        y:{title:{display:true,text:'Suhu (°C)',color:'#6b7280',font:{size:11}},ticks:{color:'#6b7280',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
